@@ -1,5 +1,4 @@
 import numpy as np 
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,10 +44,6 @@ class General_Segment_Loss(nn.Module):
         '''
         return self.scale*(self.dice(x,y)+self.alpha*self.focal(x,y))
     
-
-
-import numpy as np
-import torch
 
 def compute_iou(pred_mask, true_mask):
     """
