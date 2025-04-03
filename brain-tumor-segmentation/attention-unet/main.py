@@ -11,8 +11,6 @@ import os
 import torch 
 import torch.nn as nn 
 
-
-
 def train_model(epoch: int, model: nn.Module, dataloader: DataLoader, optim: torch.optim.Optimizer, device: torch.device):
     model.train()
 
