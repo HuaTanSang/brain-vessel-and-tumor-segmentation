@@ -38,7 +38,7 @@ class UpScaling(nn.Module):
         self.upscaling = nn.ConvTranspose2d(in_channel, in_channel // 2, kernel_size=2, stride=2)
         self.double_conv = DoubleConv(in_channel, out_channel)
 
-    def forward(self, x1, x2): # x1 from ConvTransposed, x2 from Encoder
+    def forward(self, x1, x2):  # x1 từ ConvTranspose, x2 từ encoder
         x1 = self.upscaling(x1)
 
         delta_height = x2.size()[2] - x1.size()[2]
@@ -51,7 +51,6 @@ class UpScaling(nn.Module):
 
         return self.double_conv(x)
 
-
 class OutConv(nn.Module):
     def __init__(self, in_channel, out_channel):
         super().__init__()
@@ -59,35 +58,38 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-    
 
-class MultiHeadCoAttention(nn.Module):
-    def __init__(self, in_channels, num_heads=8):
-        super(MultiHeadCoAttention, self).__init__()
-        self.num_heads = num_heads
-        self.head_dim = in_channels // num_heads
+class AttentionGate(nn.Module):
+    def __init__(self, F_g, F_l, F_int):
+        super(AttentionGate, self).__init__()
+        # 1x1 conv để giảm chiều
+        self.W_g = nn.Conv2d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True)
+        self.W_x = nn.Conv2d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True)
+        
+        # Psi layer (đưa về attention map)
+        self.psi = nn.Conv2d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True)
 
-        self.query = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.key = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.value = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        # BatchNorm giúp ổn định training
+        self.bn = nn.BatchNorm2d(F_int)
 
-        # Các phép biến đổi cho mỗi đầu attention
-        self.fc_out = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        # Activation functions
+        self.relu = nn.ReLU(inplace=True)
+        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x1, x2):
-        batch_size, C, H, W = x1.shape
+    def forward(self, x, g):
+        g1 = self.W_g(g)  # (B, F_int, H_g, W_g)
+        x1 = self.W_x(x)  # (B, F_int, H, W)
 
-        # Tính toán Query, Key, Value cho mỗi đầu
-        Q = self.query(x1).view(batch_size, self.num_heads, self.head_dim, H * W)  # (B, num_heads, head_dim, H*W)
-        K = self.key(x2).view(batch_size, self.num_heads, self.head_dim, H * W)    # (B, num_heads, head_dim, H*W)
-        V = self.value(x2).view(batch_size, self.num_heads, C // self.num_heads, H * W)  # (B, num_heads, head_dim, H*W)
+        # Resize g1 để khớp với x1
+        g1 = F.interpolate(g1, size=x1.shape[2:], mode='bilinear', align_corners=True)
 
-        # Tính toán attention cho mỗi đầu
-        attention = torch.einsum("bhnq,bhkw->bhnqw", Q, K)  # (B, num_heads, H*W, H*W)
-        attention = F.softmax(attention, dim=-1)
+        # Attention mechanism
+        psi = self.relu(self.bn(g1 + x1))  # (B, F_int, H, W)
+        psi = self.psi(psi)                # (B, 1, H, W)
+        psi = self.sigmoid(psi)            # Ánh xạ về [0,1]
 
-        # Áp dụng attention vào giá trị (Value)
-        out = torch.einsum("bhnqw,bhkw->bhnq", attention, V)  # (B, num_heads, H*W, head_dim)
-        out = out.view(batch_size, C, H, W)  # Đưa về kích thước ban đầu
+        # Nhân với input feature và thêm residual connection
+        out = x * psi + x  # Residual connection: thêm x vào đầu ra
 
-        return self.fc_out(out) + x1  # Residual connection
+        return out
+

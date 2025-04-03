@@ -1,12 +1,11 @@
 from torch import nn
-from unet_block import *
+from unet_block import *  # Giả sử bạn đã có các lớp DoubleConv, DownScaling, UpScaling, và OutConv từ mã trước
 
-class UNETModelWithMultiHeadCoAttention(nn.Module):
-    def __init__(self, n_channel, n_class, num_heads=8):
+class UNETModelWithAttentionGate(nn.Module):
+    def __init__(self, n_channel, n_class):
         super().__init__()
         self.n_channel = n_channel
         self.n_class = n_class
-        self.num_heads = num_heads
 
         self.first_conv = DoubleConv(n_channel, 64)
         
@@ -15,11 +14,11 @@ class UNETModelWithMultiHeadCoAttention(nn.Module):
         self.down3 = DownScaling(256, 512)
         self.down4 = DownScaling(512, 1024)
 
-        # Thêm Multi-Head Co-Attention vào các kết nối giữa encoder và decoder
-        self.multihead_attention1 = MultiHeadCoAttention(512, num_heads=self.num_heads)
-        self.multihead_attention2 = MultiHeadCoAttention(256, num_heads=self.num_heads)
-        self.multihead_attention3 = MultiHeadCoAttention(128, num_heads=self.num_heads)
-        self.multihead_attention4 = MultiHeadCoAttention(64, num_heads=self.num_heads)
+        # AttentionGate với tham số phù hợp: (F_g, F_l, F_int)
+        self.attention_gate1 = AttentionGate(512, 512, 256)
+        self.attention_gate2 = AttentionGate(256, 256, 128)
+        self.attention_gate3 = AttentionGate(128, 128, 64)
+        self.attention_gate4 = AttentionGate(64, 64, 32)
 
         self.up1 = UpScaling(1024, 512)
         self.up2 = UpScaling(512, 256)
@@ -36,14 +35,14 @@ class UNETModelWithMultiHeadCoAttention(nn.Module):
         x4 = self.down3(x3)
         x5 = self.down4(x4)
 
-        # Decoder với Multi-Head Co-Attention
+        # Decoder với AttentionGate
         x = self.up1(x5, x4)
-        x = self.multihead_attention1(x, x4)  # Áp dụng Multi-Head Co-Attention giữa x5 và x4
+        x = self.attention_gate1(x, x4)  # Áp dụng Attention Gate giữa output của up1 và x4
         x = self.up2(x, x3)
-        x = self.multihead_attention2(x, x3)  # Áp dụng Multi-Head Co-Attention giữa x4 và x3
+        x = self.attention_gate2(x, x3)
         x = self.up3(x, x2)
-        x = self.multihead_attention3(x, x2)  # Áp dụng Multi-Head Co-Attention giữa x3 và x2
+        x = self.attention_gate3(x, x2)
         x = self.up4(x, x1)
-        x = self.multihead_attention4(x, x1)  # Áp dụng Multi-Head Co-Attention giữa x2 và x1
+        x = self.attention_gate4(x, x1)
 
         return self.final_conv(x)

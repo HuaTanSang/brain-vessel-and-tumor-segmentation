@@ -1,7 +1,7 @@
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import *
-from unet_model import UNETModelWithMultiHeadCoAttention
+from unet_model import UNETModelWithAttentionGate
 from dataset import BrainTumorDataset
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -89,7 +89,7 @@ def main(folder_dir, checkpoint_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Define model
-    model = UNETModelWithMultiHeadCoAttention(3, 1)
+    model = UNETModelWithAttentionGate(3, 1)
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=2e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=5)
