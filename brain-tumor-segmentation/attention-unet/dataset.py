@@ -9,7 +9,7 @@ class BrainTumorDataset(Dataset):
         self.image_dir = os.path.join(root_folder, "image")
         self.mask_dir = os.path.join(root_folder, "mask")
 
-        list_subfolder = ["1", "2", "3"]
+        list_subfolder = ["0", "1", "2", "3"]
         self.image_files = [] 
         self.mask_files = [] 
 
@@ -26,14 +26,14 @@ class BrainTumorDataset(Dataset):
         assert len(self.image_files) == len(self.mask_files), "Số lượng ảnh và mask không khớp"
 
         self.image_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((16, 16)),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.expand(3, -1, -1) if x.shape[0] == 1 else x),  
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
 
         self.mask_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((16, 16)),
             transforms.ToTensor()
         ])
 
